@@ -14,4 +14,17 @@
     <PackageReference Include="System.Text.Json" Version="9.0.0" />
   </ItemGroup>
 
+  <!-- Copy executable to bin/ folder after Release build -->
+  <Target Name="CopyToBin" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+    <PropertyGroup>
+      <BinFolder>$(MSBuildProjectDirectory)\..\bin\</BinFolder>
+    </PropertyGroup>
+    <MakeDir Directories="$(BinFolder)" />
+    <Copy SourceFiles="$(OutputPath)unityrc.exe" DestinationFolder="$(BinFolder)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(OutputPath)unityrc.dll" DestinationFolder="$(BinFolder)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(OutputPath)unityrc.runtimeconfig.json" DestinationFolder="$(BinFolder)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(OutputPath)System.CommandLine.dll" DestinationFolder="$(BinFolder)" SkipUnchangedFiles="true" />
+    <Message Importance="high" Text="Copied unityrc to $(BinFolder)" />
+  </Target>
+
 </Project>
