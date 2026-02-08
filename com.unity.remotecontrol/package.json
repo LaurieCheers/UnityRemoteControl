@@ -1,0 +1,22 @@
+{
+  "name": "com.unity.remotecontrol",
+  "version": "1.0.0",
+  "displayName": "Remote Control",
+  "description": "TCP server for AI agents to inspect and modify prefabs remotely",
+  "unity": "2021.3",
+  "documentationUrl": "",
+  "changelogUrl": "",
+  "licensesUrl": "",
+  "keywords": [
+    "remote",
+    "control",
+    "tcp",
+    "prefab",
+    "ai"
+  ],
+  "author": {
+    "name": "Unity Technologies",
+    "email": "",
+    "url": ""
+  }
+}
