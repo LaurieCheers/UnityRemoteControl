@@ -14,7 +14,7 @@
     <PackageReference Include="System.Text.Json" Version="9.0.0" />
   </ItemGroup>
 
-  <!-- Copy executable to bin/ folder after Release build -->
+  <!-- Copy executable + dependencies to bin/ folder after Release build -->
   <Target Name="CopyToBin" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
     <PropertyGroup>
       <BinFolder>$(MSBuildProjectDirectory)\..\bin\</BinFolder>
@@ -22,8 +22,12 @@
     <MakeDir Directories="$(BinFolder)" />
     <Copy SourceFiles="$(OutputPath)unityrc.exe" DestinationFolder="$(BinFolder)" SkipUnchangedFiles="true" />
     <Copy SourceFiles="$(OutputPath)unityrc.dll" DestinationFolder="$(BinFolder)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(OutputPath)unityrc.deps.json" DestinationFolder="$(BinFolder)" SkipUnchangedFiles="true" />
     <Copy SourceFiles="$(OutputPath)unityrc.runtimeconfig.json" DestinationFolder="$(BinFolder)" SkipUnchangedFiles="true" />
     <Copy SourceFiles="$(OutputPath)System.CommandLine.dll" DestinationFolder="$(BinFolder)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(OutputPath)System.Text.Json.dll" DestinationFolder="$(BinFolder)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(OutputPath)System.Text.Encodings.Web.dll" DestinationFolder="$(BinFolder)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(OutputPath)System.IO.Pipelines.dll" DestinationFolder="$(BinFolder)" SkipUnchangedFiles="true" />
     <Message Importance="high" Text="Copied unityrc to $(BinFolder)" />
   </Target>
 
