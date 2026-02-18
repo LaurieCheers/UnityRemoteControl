@@ -12,7 +12,9 @@ namespace Unity.RemoteControl.Editor.Commands
         public async Task<Response> ExecuteAsync(Request request)
         {
             var path = request.GetParam<string>("path", null);
-            var includeProperties = request.GetParam<bool>("include_properties", true);
+            var includeProperties = request.GetParam<bool>("include_properties", false);
+            var maxDepth = request.GetParam<int>("max_depth", -1);
+            var gameObjectPath = request.GetParam<string>("gameobject_path", null);
 
             if (string.IsNullOrEmpty(path))
                 return Response.Error(request.id, "Missing required parameter: path");
@@ -21,48 +23,88 @@ namespace Unity.RemoteControl.Editor.Commands
             {
                 var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
                 if (prefab == null)
-                    return null;
+                    return (null, "Prefab not found: " + path);
 
-                return SerializeGameObject(prefab, "", includeProperties);
+                GameObject target = prefab;
+                if (!string.IsNullOrEmpty(gameObjectPath))
+                {
+                    var transform = prefab.transform.Find(gameObjectPath);
+                    if (transform == null)
+                        return (null, "GameObject not found: " + gameObjectPath);
+                    target = transform.gameObject;
+                }
+
+                var parentPath = "";
+                if (!string.IsNullOrEmpty(gameObjectPath))
+                {
+                    // Build parent path up to but not including the target
+                    var lastSlash = gameObjectPath.LastIndexOf('/');
+                    if (lastSlash >= 0)
+                        parentPath = prefab.name + "/" + gameObjectPath.Substring(0, lastSlash);
+                    else
+                        parentPath = prefab.name;
+                }
+
+                return (SerializeGameObject(target, parentPath, includeProperties, maxDepth, 0), (string)null);
             });
 
-            if (result == null)
-                return Response.Error(request.id, $"Prefab not found: {path}");
+            if (result.Item2 != null)
+                return Response.Error(request.id, result.Item2);
 
-            return Response.Success(request.id, result);
+            return Response.Success(request.id, result.Item1);
         }
 
-        internal static GameObjectInfo SerializeGameObject(GameObject go, string parentPath, bool includeProperties)
+        internal static GameObjectInfo SerializeGameObject(GameObject go, string parentPath, bool includeProperties, int maxDepth, int currentDepth)
         {
             var currentPath = string.IsNullOrEmpty(parentPath) ? go.name : $"{parentPath}/{go.name}";
+
+            // Focus node (depth 0 with properties): full detail
+            // Overview nodes: just name, path, component names, child counts
+            bool isFocusNode = includeProperties && currentDepth == 0;
 
             var info = new GameObjectInfo
             {
                 name = go.name,
                 path = currentPath,
-                instanceId = go.GetInstanceID(),
-                activeSelf = go.activeSelf,
-                tag = go.tag,
-                layer = go.layer,
-                components = new List<ComponentInfo>(),
-                children = new List<GameObjectInfo>()
+                children = new List<GameObjectInfo>(),
+                childCount = go.transform.childCount
             };
 
-            // Serialize components
-            var components = go.GetComponents<Component>();
-            foreach (var component in components)
+            if (isFocusNode)
             {
-                if (component == null) continue;
-
-                var compInfo = SerializeComponent(component, includeProperties);
-                info.components.Add(compInfo);
+                info.instanceId = go.GetInstanceID();
+                info.activeSelf = go.activeSelf;
+                info.tag = go.tag;
+                info.layer = go.layer;
+                info.components = new List<ComponentInfo>();
+                var components = go.GetComponents<Component>();
+                foreach (var component in components)
+                {
+                    if (component == null) continue;
+                    info.components.Add(SerializeComponent(component, true));
+                }
+            }
+            else
+            {
+                info.componentNames = new List<string>();
+                var components = go.GetComponents<Component>();
+                foreach (var component in components)
+                {
+                    if (component == null) continue;
+                    var typeName = component.GetType().Name;
+                    if (typeName == "Transform" || typeName == "RectTransform") continue;
+                    info.componentNames.Add(typeName);
+                }
             }
 
-            // Serialize children
-            for (int i = 0; i < go.transform.childCount; i++)
+            // Recurse into children if within depth limit
+            if (maxDepth < 0 || currentDepth < maxDepth)
             {
-                var child = go.transform.GetChild(i).gameObject;
-                info.children.Add(SerializeGameObject(child, currentPath, includeProperties));
+                for (int i = 0; i < go.transform.childCount; i++)
+                {
+                    var child = go.transform.GetChild(i).gameObject;
+                    info.children.Add(SerializeGameObject(child, currentPath, includeProperties, maxDepth, currentDepth + 1));
+                }
             }
 
             return info;
@@ -134,7 +176,30 @@ namespace Unity.RemoteControl.Editor.Commands
                     return new float[] { c.r, c.g, c.b, c.a };
                 case SerializedPropertyType.ObjectReference:
                     var obj = prop.objectReferenceValue;
-                    return obj != null ? obj.name : null;
+                    if (obj == null) return null;
+                    var objAssetPath = AssetDatabase.GetAssetPath(obj);
+
+                    // If it's a standalone asset (not inside a prefab/scene), return the asset path
+                    if (!string.IsNullOrEmpty(objAssetPath))
+                    {
+                        // Check if the object IS the main asset (not something inside a prefab)
+                        var mainAsset = AssetDatabase.LoadMainAssetAtPath(objAssetPath);
+                        if (mainAsset == obj || !(obj is GameObject || obj is Component))
+                            return objAssetPath;
+                    }
+
+                    // Internal reference: build a path like "Body/LeftArm" or "Body/LeftArm:BoxCollider"
+                    if (obj is GameObject go)
+                    {
+                        return GetGameObjectPath(go);
+                    }
+                    else if (obj is Component comp)
+                    {
+                        var goPath = GetGameObjectPath(comp.gameObject);
+                        return $"{goPath}:{comp.GetType().Name}";
+                    }
+
+                    return obj.name;
                 case SerializedPropertyType.Enum:
                     return prop.enumNames.Length > prop.enumValueIndex && prop.enumValueIndex >= 0
                         ? prop.enumNames[prop.enumValueIndex]
@@ -172,6 +237,30 @@ namespace Unity.RemoteControl.Editor.Commands
                 default:
                     return null;
             }
+        }
+
+        /// <summary>
+        /// Build a hierarchy path for a GameObject relative to its root.
+        /// Returns the path suitable for Transform.Find() (excludes root name).
+        /// If the object IS the root, returns its name.
+        /// </summary>
+        private static string GetGameObjectPath(GameObject go)
+        {
+            var parts = new List<string>();
+            var current = go.transform;
+            while (current != null)
+            {
+                parts.Add(current.name);
+                current = current.parent;
+            }
+            parts.Reverse();
+
+            // If only one part, it's the root itself
+            if (parts.Count <= 1)
+                return go.name;
+
+            // Skip root name, return relative path (matches Transform.Find format)
+            return string.Join("/", parts.GetRange(1, parts.Count - 1));
         }
     }
 }

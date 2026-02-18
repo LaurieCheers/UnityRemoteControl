@@ -82,8 +82,10 @@ namespace Unity.RemoteControl
         public bool activeSelf;
         public string tag;
         public int layer;
+        public List<string> componentNames;
         public List<ComponentInfo> components;
         public List<GameObjectInfo> children;
+        public int childCount;
     }
 
     [Serializable]
@@ -114,5 +116,33 @@ namespace Unity.RemoteControl
         public string name;
         public string path;
         public string guid;
+    }
+
+    [Serializable]
+    public class PrefabListResult
+    {
+        public int total;
+        public int offset;
+        public int limit;
+        public List<PrefabInfo> prefabs;
+    }
+
+    [Serializable]
+    public class AssetInfo
+    {
+        public string name;
+        public string path;
+        public string guid;
+        public string type;
+        public List<PropertyInfo> properties;
+    }
+
+    [Serializable]
+    public class AssetListResult
+    {
+        public int total;
+        public int offset;
+        public int limit;
+        public List<AssetInfo> assets;
     }
 }

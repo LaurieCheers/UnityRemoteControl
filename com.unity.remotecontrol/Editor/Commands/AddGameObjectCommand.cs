@@ -43,7 +43,7 @@ namespace Unity.RemoteControl.Editor.Commands
 
                     PrefabUtility.SaveAsPrefabAsset(root, path);
 
-                    var info = GetPrefabCommand.SerializeGameObject(newGo, parentPath ?? "", false);
+                    var info = GetPrefabCommand.SerializeGameObject(newGo, parentPath ?? "", false, -1, 0);
                     return (info, (string)null);
                 }
                 finally

@@ -4,23 +4,25 @@ using UnityEditor;
 
 namespace Unity.RemoteControl.Editor.Commands
 {
-    public class ListPrefabsCommand : ICommand
+    public class ListAssetsCommand : ICommand
     {
-        public string Name => "list_prefabs";
+        public string Name => "list_assets";
 
         public async Task<Response> ExecuteAsync(Request request)
         {
             var folder = request.GetParam<string>("folder", null);
+            var typeFilter = request.GetParam<string>("type", null);
             var offset = request.GetParam<int>("offset", 0);
             var limit = request.GetParam<int>("limit", 100);
 
             var result = await MainThreadDispatcher.EnqueueAsync(() =>
             {
                 var searchFolder = string.IsNullOrEmpty(folder) ? "Assets" : folder;
-                var guids = AssetDatabase.FindAssets("t:Prefab", new[] { searchFolder });
+                var filter = string.IsNullOrEmpty(typeFilter) ? "" : $"t:{typeFilter}";
+                var guids = AssetDatabase.FindAssets(filter, new[] { searchFolder });
 
                 var total = guids.Length;
-                var prefabs = new List<PrefabInfo>();
+                var assets = new List<AssetInfo>();
 
                 var start = System.Math.Min(offset, total);
                 var end = System.Math.Min(start + limit, total);
@@ -29,21 +31,23 @@ namespace Unity.RemoteControl.Editor.Commands
                 {
                     var path = AssetDatabase.GUIDToAssetPath(guids[i]);
                     var name = System.IO.Path.GetFileNameWithoutExtension(path);
+                    var asset = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(path);
 
-                    prefabs.Add(new PrefabInfo
+                    assets.Add(new AssetInfo
                     {
                         name = name,
                         path = path,
-                        guid = guids[i]
+                        guid = guids[i],
+                        type = asset != null ? asset.GetType().Name : "Unknown"
                     });
                 }
 
-                return new PrefabListResult
+                return new AssetListResult
                 {
                     total = total,
                     offset = start,
                     limit = limit,
-                    prefabs = prefabs
+                    assets = assets
                 };
             });
 

@@ -1,6 +1,7 @@
 using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
+using System.Collections.Generic;
 
 namespace Unity.RemoteControl.Editor.Commands
 {
@@ -73,7 +74,7 @@ namespace Unity.RemoteControl.Editor.Commands
 
                     Undo.RecordObject(component, $"Remote Control: Set {propertyPath}");
 
-                    var setResult = SetPropertyValue(prop, value);
+                    var setResult = SetPropertyValue(prop, value, root);
                     if (setResult != null)
                         return setResult;
 
@@ -94,7 +95,7 @@ namespace Unity.RemoteControl.Editor.Commands
             return Response.Success(request.id, new { modified = true });
         }
 
-        internal static string SetPropertyValue(SerializedProperty prop, object value)
+        internal static string SetPropertyValue(SerializedProperty prop, object value, GameObject prefabRoot = null)
         {
             try
             {
@@ -199,6 +200,48 @@ namespace Unity.RemoteControl.Editor.Commands
                         prop.rectIntValue = new RectInt(riArr[0], riArr[1], riArr[2], riArr[3]);
                         break;
 
+                    case SerializedPropertyType.ObjectReference:
+                        var assetPath = value?.ToString();
+                        if (string.IsNullOrEmpty(assetPath))
+                        {
+                            prop.objectReferenceValue = null;
+                            break;
+                        }
+
+                        Object resolvedObj = null;
+
+                        // Check for internal prefab reference: "go:ComponentType" or "go" (for GameObject)
+                        if (prefabRoot != null && !assetPath.StartsWith("Assets/"))
+                        {
+                            resolvedObj = ResolveInternalReference(prefabRoot, assetPath);
+                        }
+
+                        // Try loading by asset path
+                        if (resolvedObj == null)
+                        {
+                            resolvedObj = AssetDatabase.LoadAssetAtPath<Object>(assetPath);
+                        }
+
+                        // Try searching by name as fallback
+                        if (resolvedObj == null)
+                        {
+                            var guids = AssetDatabase.FindAssets(assetPath);
+                            if (guids.Length == 1)
+                            {
+                                var foundPath = AssetDatabase.GUIDToAssetPath(guids[0]);
+                                resolvedObj = AssetDatabase.LoadAssetAtPath<Object>(foundPath);
+                            }
+                            else if (guids.Length > 1)
+                            {
+                                return $"Ambiguous asset reference '{assetPath}' - found {guids.Length} matches. Use the full asset path instead.";
+                            }
+                        }
+
+                        if (resolvedObj == null)
+                            return $"Object not found: {assetPath}. For assets use full path (Assets/...). For prefab internals use gameobject path or path:ComponentType";
+                        prop.objectReferenceValue = resolvedObj;
+                        break;
+
                     default:
                         return $"Property type {prop.propertyType} is not supported for modification";
                 }
@@ -271,6 +314,63 @@ namespace Unity.RemoteControl.Editor.Commands
                     result[i] = System.Convert.ToInt32(list[i]);
                 }
                 return result;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Resolve an internal prefab reference like "Body/LeftArm" (GameObject)
+        /// or "Body/LeftArm:BoxCollider" (Component on a child).
+        /// Plain name like "LeftArm" also works for direct children.
+        /// </summary>
+        private static Object ResolveInternalReference(GameObject root, string reference)
+        {
+            string goPath;
+            string componentType = null;
+
+            // Split on last ':' to separate path from component type
+            var colonIdx = reference.LastIndexOf(':');
+            if (colonIdx >= 0)
+            {
+                goPath = reference.Substring(0, colonIdx);
+                componentType = reference.Substring(colonIdx + 1);
+            }
+            else
+            {
+                goPath = reference;
+            }
+
+            // Find the target GameObject
+            GameObject target = null;
+            if (string.IsNullOrEmpty(goPath) || goPath == root.name)
+            {
+                target = root;
+            }
+            else
+            {
+                var transform = root.transform.Find(goPath);
+                if (transform != null)
+                    target = transform.gameObject;
+            }
+
+            if (target == null)
+                return null;
+
+            // If no component type specified, return the GameObject itself
+            if (string.IsNullOrEmpty(componentType))
+                return target;
+
+            // Find the component by type name
+            var type = GetComponentCommand.FindType(componentType);
+            if (type != null)
+                return target.GetComponent(type);
+
+            // Fallback: search by name
+            foreach (var comp in target.GetComponents<Component>())
+            {
+                if (comp != null && comp.GetType().Name == componentType)
+                    return comp;
             }
 
             return null;

@@ -369,6 +369,15 @@ namespace Unity.RemoteControl.Editor
             if (obj is PrefabInfo prefab)
                 return SerializePrefabInfo(prefab);
 
+            if (obj is PrefabListResult prefabList)
+                return SerializePrefabListResult(prefabList);
+
+            if (obj is AssetInfo asset)
+                return SerializeAssetInfo(asset);
+
+            if (obj is AssetListResult assetList)
+                return SerializeAssetListResult(assetList);
+
             // Use JsonUtility for other complex objects
             try
             {
@@ -385,14 +394,27 @@ namespace Unity.RemoteControl.Editor
             var sb = new StringBuilder("{");
             sb.Append($"\"name\":\"{EscapeString(go.name)}\"");
             sb.Append($",\"path\":\"{EscapeString(go.path)}\"");
-            sb.Append($",\"instanceId\":{go.instanceId}");
-            sb.Append($",\"activeSelf\":{(go.activeSelf ? "true" : "false")}");
-            sb.Append($",\"tag\":\"{EscapeString(go.tag)}\"");
-            sb.Append($",\"layer\":{go.layer}");
-            sb.Append(",\"components\":");
-            sb.Append(SerializeObject(go.components));
-            sb.Append(",\"children\":");
-            sb.Append(SerializeObject(go.children));
+            if (go.components != null)
+            {
+                // Focus node: full detail
+                sb.Append($",\"instanceId\":{go.instanceId}");
+                sb.Append($",\"activeSelf\":{(go.activeSelf ? "true" : "false")}");
+                sb.Append($",\"tag\":\"{EscapeString(go.tag)}\"");
+                sb.Append($",\"layer\":{go.layer}");
+                sb.Append(",\"components\":");
+                sb.Append(SerializeObject(go.components));
+            }
+            if (go.componentNames != null)
+            {
+                sb.Append(",\"componentNames\":");
+                sb.Append(SerializeObject(go.componentNames));
+            }
+            if (go.children != null && go.children.Count > 0)
+            {
+                sb.Append(",\"children\":");
+                sb.Append(SerializeObject(go.children));
+            }
+            sb.Append($",\"childCount\":{go.childCount}");
             sb.Append("}");
             return sb.ToString();
         }
@@ -430,6 +452,46 @@ namespace Unity.RemoteControl.Editor
             sb.Append($"\"name\":\"{EscapeString(prefab.name)}\"");
             sb.Append($",\"path\":\"{EscapeString(prefab.path)}\"");
             sb.Append($",\"guid\":\"{EscapeString(prefab.guid)}\"");
+            sb.Append("}");
+            return sb.ToString();
+        }
+
+        private string SerializePrefabListResult(PrefabListResult result)
+        {
+            var sb = new StringBuilder("{");
+            sb.Append($"\"total\":{result.total}");
+            sb.Append($",\"offset\":{result.offset}");
+            sb.Append($",\"limit\":{result.limit}");
+            sb.Append(",\"prefabs\":");
+            sb.Append(SerializeObject(result.prefabs));
+            sb.Append("}");
+            return sb.ToString();
+        }
+
+        private string SerializeAssetInfo(AssetInfo asset)
+        {
+            var sb = new StringBuilder("{");
+            sb.Append($"\"name\":\"{EscapeString(asset.name)}\"");
+            sb.Append($",\"path\":\"{EscapeString(asset.path)}\"");
+            sb.Append($",\"guid\":\"{EscapeString(asset.guid)}\"");
+            sb.Append($",\"type\":\"{EscapeString(asset.type)}\"");
+            if (asset.properties != null)
+            {
+                sb.Append(",\"properties\":");
+                sb.Append(SerializeObject(asset.properties));
+            }
+            sb.Append("}");
+            return sb.ToString();
+        }
+
+        private string SerializeAssetListResult(AssetListResult result)
+        {
+            var sb = new StringBuilder("{");
+            sb.Append($"\"total\":{result.total}");
+            sb.Append($",\"offset\":{result.offset}");
+            sb.Append($",\"limit\":{result.limit}");
+            sb.Append(",\"assets\":");
+            sb.Append(SerializeObject(result.assets));
             sb.Append("}");
             return sb.ToString();
         }

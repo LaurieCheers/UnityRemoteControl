@@ -67,6 +67,10 @@ namespace Unity.RemoteControl.Editor
             Register(new RemoveComponentCommand());
             Register(new AddGameObjectCommand());
             Register(new RemoveGameObjectCommand());
+            Register(new CreateAssetCommand());
+            Register(new GetAssetCommand());
+            Register(new SetAssetPropertyCommand());
+            Register(new ListAssetsCommand());
         }
     }
 }
