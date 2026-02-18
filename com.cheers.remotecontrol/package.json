@@ -1,5 +1,5 @@
 {
-  "name": "com.unity.remotecontrol",
+  "name": "com.cheers.remotecontrol",
   "version": "1.0.0",
   "displayName": "Remote Control",
   "description": "TCP server for AI agents to inspect and modify prefabs remotely",
@@ -14,9 +14,4 @@
     "prefab",
     "ai"
   ],
-  "author": {
-    "name": "Unity Technologies",
-    "email": "",
-    "url": ""
-  }
 }
