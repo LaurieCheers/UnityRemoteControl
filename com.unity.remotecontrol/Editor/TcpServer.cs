@@ -40,7 +40,7 @@ namespace Unity.RemoteControl.Editor
 
             try
             {
-                _listener = new TcpListener(IPAddress.Any, port);
+                _listener = new TcpListener(IPAddress.Loopback, port);
                 _listener.Start();
                 Log($"Server started on port {port}");
 
